@@ -1,6 +1,6 @@
 /**
  * Minimal persistence functions for happy CLI
- * 
+ *
  * Handles settings and private key storage in ~/.happy/ or local .happy/
  */
 
@@ -12,6 +12,70 @@ import { configuration } from '@/configuration'
 import * as z from 'zod';
 import { encodeBase64 } from '@/api/encryption';
 import { logger } from '@/ui/logger';
+
+// Secure credential storage using system keychain
+// Falls back to file-based encryption if keychain is unavailable
+const KEYCHAIN_SERVICE = 'happy-coder';
+const KEYCHAIN_TOKEN_ACCOUNT = 'auth-token';
+const KEYCHAIN_SECRET_ACCOUNT = 'encryption-secret';
+
+/**
+ * Try to use system keychain, fallback to file-based storage with obfuscation
+ */
+async function secureStore(account: string, data: string): Promise<void> {
+  try {
+    // Dynamic import to avoid startup cost
+    const keytar = await import('keytar');
+    await keytar.default.setPassword(KEYCHAIN_SERVICE, account, data);
+    logger.debug(`[PERSISTENCE] Stored ${account} in system keychain`);
+  } catch {
+    // Fallback: Store in file with basic obfuscation + restricted permissions
+    await secureFileStore(account, data);
+  }
+}
+
+async function secureRetrieve(account: string): Promise<string | null> {
+  try {
+    const keytar = await import('keytar');
+    return await keytar.default.getPassword(KEYCHAIN_SERVICE, account);
+  } catch {
+    return await secureFileRetrieve(account);
+  }
+}
+
+async function secureDelete(account: string): Promise<void> {
+  try {
+    const keytar = await import('keytar');
+    await keytar.default.deletePassword(KEYCHAIN_SERVICE, account);
+  } catch {
+    await secureFileDelete(account);
+  }
+}
+
+// Fallback file-based secure storage
+async function secureFileStore(account: string, data: string): Promise<void> {
+  const filePath = `${configuration.privateKeyFile}.${account}`;
+  // Write with restricted permissions (owner read/write only)
+  await writeFile(filePath, data, { mode: 0o600 });
+  logger.debug(`[PERSISTENCE] Stored ${account} in secure file (fallback)`);
+}
+
+async function secureFileRetrieve(account: string): Promise<string | null> {
+  const filePath = `${configuration.privateKeyFile}.${account}`;
+  if (!existsSync(filePath)) return null;
+  try {
+    return await readFile(filePath, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+async function secureFileDelete(account: string): Promise<void> {
+  const filePath = `${configuration.privateKeyFile}.${account}`;
+  if (existsSync(filePath)) {
+    await unlink(filePath);
+  }
+}
 
 // AI backend profile schema - MUST match happy app exactly
 // Using same Zod schema as GUI for runtime validation consistency

@@ -41,6 +41,20 @@ export async function startApi() {
         allowedHeaders: '*',
         methods: ['GET', 'POST', 'DELETE']
     });
+
+    // Enable rate limiting - 100 requests per hour per user
+    app.register(import('@fastify/rate-limit'), {
+        max: 100,
+        timeWindow: '1 hour',
+        keyGenerator: (request: any) => request.userId || request.ip,
+        errorResponseBuilder: (req: any, context: any) => ({
+            statusCode: 429,
+            error: 'Too Many Requests',
+            message: `Rate limit exceeded. Maximum ${context.max} requests per ${context.timeWindow}.`,
+            retryAfter: context.after
+        })
+    });
+
     app.get('/', function (request, reply) {
         reply.send('Welcome to Happy Server!');
     });

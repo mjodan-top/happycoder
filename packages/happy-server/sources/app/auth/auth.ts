@@ -27,7 +27,8 @@ class AuthModule {
         
         const generator = await privacyKit.createPersistentTokenGenerator({
             service: 'handy',
-            seed: process.env.HANDY_MASTER_SECRET!
+            seed: process.env.HANDY_MASTER_SECRET!,
+            ttl: 7 * 24 * 60 * 60 * 1000 // 7 days expiration
         });
 
         

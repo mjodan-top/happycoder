@@ -222,6 +222,38 @@ export async function startDaemon(): Promise<void> {
       const { directory, sessionId, machineId, approvedNewDirectoryCreation = true } = options;
       let directoryCreated = false;
 
+      // Security: Validate directory path to prevent path traversal attacks
+      const resolvedPath = path.resolve(directory);
+      const homeDir = os.homedir();
+      const allowedRoots = [
+        homeDir,
+        '/tmp',
+        '/var/tmp',
+        process.cwd()
+      ];
+
+      const isAllowedPath = allowedRoots.some(root => {
+        const resolvedRoot = path.resolve(root);
+        return resolvedPath === resolvedRoot || resolvedPath.startsWith(resolvedRoot + path.sep);
+      });
+
+      if (!isAllowedPath) {
+        logger.debug(`[DAEMON RUN] Security: Directory path not allowed: ${directory}`);
+        return {
+          type: 'error',
+          errorMessage: `Security error: Directory '${directory}' is outside allowed paths. Sessions can only be created within your home directory, /tmp, or current working directory.`
+        };
+      }
+
+      // Security: Check for path traversal attempts
+      if (directory.includes('..') || directory.includes('~')) {
+        logger.debug(`[DAEMON RUN] Security: Path traversal detected: ${directory}`);
+        return {
+          type: 'error',
+          errorMessage: `Security error: Invalid directory path. Path traversal characters are not allowed.`
+        };
+      }
+
       try {
         await fs.access(directory);
         logger.debug(`[DAEMON RUN] Directory exists: ${directory}`);

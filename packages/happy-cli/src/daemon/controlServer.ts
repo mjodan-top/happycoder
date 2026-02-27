@@ -10,6 +10,64 @@ import { logger } from '@/ui/logger';
 import { Metadata } from '@/api/types';
 import { TrackedSession } from './types';
 import { SpawnSessionOptions, SpawnSessionResult } from '@/modules/common/registerCommonHandlers';
+import crypto from 'node:crypto';
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+
+// Local authentication token storage
+const DAEMON_AUTH_DIR = join(homedir(), '.happy');
+const DAEMON_AUTH_FILE = join(DAEMON_AUTH_DIR, 'daemon-auth.json');
+
+/**
+ * Generate or load local authentication token for daemon HTTP server
+ * This token is used to authenticate local clients (only accessible from localhost)
+ */
+export function getOrCreateDaemonAuthToken(): string {
+  if (existsSync(DAEMON_AUTH_FILE)) {
+    try {
+      const auth = JSON.parse(readFileSync(DAEMON_AUTH_FILE, 'utf-8'));
+      if (auth.token) {
+        return auth.token;
+      }
+    } catch {
+      // File corrupted, generate new token
+    }
+  }
+
+  // Generate new token
+  const token = crypto.randomBytes(32).toString('hex');
+
+  // Ensure directory exists
+  if (!existsSync(DAEMON_AUTH_DIR)) {
+    mkdirSync(DAEMON_AUTH_DIR, { recursive: true });
+  }
+
+  // Write token with restricted permissions (user read/write only)
+  writeFileSync(DAEMON_AUTH_FILE, JSON.stringify({ token, createdAt: Date.now() }, null, 2), { mode: 0o600 });
+
+  return token;
+}
+
+/**
+ * Verify daemon authentication token from request
+ */
+function verifyDaemonAuthToken(request: any): boolean {
+  const authHeader = request.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return false;
+  }
+
+  const token = authHeader.substring(7);
+  const expectedToken = getOrCreateDaemonAuthToken();
+
+  // Use timing-safe comparison to prevent timing attacks
+  try {
+    return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken));
+  } catch {
+    return false;
+  }
+}
 
 export function startDaemonControlServer({
   getChildren,
