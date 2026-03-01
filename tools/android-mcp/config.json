@@ -1,0 +1,8 @@
+{
+  "adb_path": "/Users/fanmengni/android-sdk/platform-tools/adb",
+  "device": "emulator-5554",
+  "debug_server_port": 19876,
+  "screenshot_dir": "/tmp/android-screenshots",
+  "uiautomator_dump_retries": 3,
+  "uiautomator_dump_retry_delay": 1.0
+}

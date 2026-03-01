@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "android-cu": {
+      "command": "python3.11",
+      "args": ["/Users/fanmengni/git/work/happy/tools/android-mcp/server.py"],
+      "env": {
+        "ADB_PATH": "/opt/android-sdk/platform-tools/adb",
+        "ANDROID_DEVICE": "emulator-5554"
+      }
+    }
+  }
+}
